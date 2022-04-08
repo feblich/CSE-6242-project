@@ -4,6 +4,7 @@ import pandas as pd
 from sklearn.linear_model import Lasso
 
 class SuperGenesLasso:
-    pass
+    def __init__(self):
+        pass
 
 st.write("Hello World test connection")
