@@ -9,10 +9,43 @@ from sklearn.model_selection import train_test_split
 from sklearn.neural_network import MLPRegressor
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.preprocessing import StandardScaler
+from sklearn.pipeline import Pipeline
+from sklearn.metrics import mean_squared_error
+import pickle
 
-class SuperGenesLasso:
-    def __init__(self):
-        pass
+class SuperGenes:
+    def __init__(self, clustering_method, model_config):
+        self.clustering_method = clustering_method
+        self.model_config = model_config
+        self.pipe = None
+        self.mdl = None
+        self.scaler = None
+
+    def _cluster(self, X):
+        if self.clustering_method == 'hierarchical_clustering':
+            X = X.T
+            self.scaler = StandardScaler()
+            scaled_X = self.scaler.fit_transform(X)
+            X = pd.DataFrame(scaled_X, index=X.index, columns=X.columns)
+            cluster_obj = AgglomerativeClustering(n_clusters=500, compute_distances=True)
+            cluster_obj.fit(X)
+            self.super_genes_labels = cluster_obj.labels_
+            X['cluster_labels'] = self.super_genes_labels
+            X = X.groupby(by="cluster_labels").mean()
+            X = X.T
+            return X
+
+    def learning(self, X, y):
+        X_low_dim = self._cluster(X)
+        self.mdl = GridSearchCV(self.model_config['name'], self.model_config['parameters'])
+        self.mdl.fit(X_low_dim, y)
+
+    def predict(self, X):
+        X = X.T
+        X['cluster_labels'] = self.super_genes_labels
+        X = X.groupby(by="cluster_labels").mean()
+        X = X.T
+        return self.mdl.predict(X)
 
 
 if __name__ == "__main__":
@@ -34,43 +67,26 @@ if __name__ == "__main__":
     data_mitomycin = gene_exp.merge(mitomycin)
     data_trametinib = gene_exp.merge(trametinib)
 
-    # X = data_mitomycin.loc[:, data_mitomycin.columns != 'mitomycin-C (GDSC1:136)']  # features
-    # X = X.loc[:, X.columns != 'Unnamed: 0']  # features
-    # y = data_mitomycin['mitomycin-C (GDSC1:136)']  # response Variable
-
-    X = data_trametinib.loc[:, data_trametinib.columns != 'trametinib (GDSC1:1372)']  # features
+    X = data_mitomycin.loc[:, data_mitomycin.columns != 'mitomycin-C (GDSC1:136)']  # features
     X = X.loc[:, X.columns != 'Unnamed: 0']  # features
-    y = data_trametinib['trametinib (GDSC1:1372)']  # response Variable
+    y = data_mitomycin['mitomycin-C (GDSC1:136)']  # response Variable
 
-    model = AgglomerativeClustering(n_clusters=500, compute_distances=True)
-    X = X.T
-    model = model.fit(X)
-    X['cluster_labels'] = model.labels_
-    X = X.groupby(by="cluster_labels").mean()
+    # X = data_trametinib.loc[:, data_trametinib.columns != 'trametinib (GDSC1:1372)']  # features
+    # X = X.loc[:, X.columns != 'Unnamed: 0']  # features
+    # y = data_trametinib['trametinib (GDSC1:1372)']  # response Variable
 
-
-    ## try lasso first
-    X = X.T
-    X_train, X_test, Y_train, Y_test = train_test_split(X, y, test_size=0.3,
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3,
                                                         random_state=42)
-    parameters = {'alpha': [.0000001, .0001, .1]}
-    lasso = GridSearchCV(Lasso(fit_intercept=True), parameters)
-    lasso.fit(X_train, Y_train)
-    # plt.plot(ridge.best_estimator_.predict(X_test), color='k', marker='o')
-    # plt.plot(Y_test.reset_index(drop=True), 'ro')
-    # plt.show()
 
-    ## ridge
-    ridge = GridSearchCV(Ridge(fit_intercept=True), parameters)
-    ridge.fit(X_train, Y_train)
+    mdl = SuperGenes(clustering_method='hierarchical_clustering',
+                     model_config={'name': Lasso(), 'parameters': {'alpha': [.0000001, .0001]}})
+
+    mdl.learning(X_train, y_train)
+    y_pred = mdl.predict(X_test)
+    rmse = mean_squared_error(y_test, y_pred)
+    pickle.dump(mdl, open('model.pkl', 'wb'))
 
 
-    ## neural net regressor
-    mlp = GridSearchCV(MLPRegressor(), parameters)
-    mlp.fit(X_train, Y_train)
-
-
-    a=2
 
 
 
