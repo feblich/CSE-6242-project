@@ -17,4 +17,4 @@ if uploaded_file is not None:
 super_genes_model = pickle.load(open('model.pkl', 'rb'))
 y_pred = super_genes_model.predict(test_df)
 st.title("IC50 prediction for mitomycin")
-st.write(pd.DataFrame(y_pred))
+st.write(pd.DataFrame(y_pred).rename(columns={0:"mitomycin"}))
