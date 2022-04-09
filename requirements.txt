@@ -1,3 +1,7 @@
 streamlit
 psycopg2-binary
 streamlit_authenticator
+pandas
+sklearn
+matplotlib
+seaborn
