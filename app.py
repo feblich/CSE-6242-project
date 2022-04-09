@@ -4,28 +4,33 @@ import psycopg2
 from urllib.parse import urlparse
 import os
 
-result = urlparse("postgresql://postgres:postgres@localhost/postgres")
-username = result.username
-password = result.password
-database = result.path[1:]
-hostname = result.hostname
-port = result.port
-connection = psycopg2.connect(
-    database = database,
-    user = username,
-    password = password,
-    host = hostname,
-    port = port
-)
-st.write(os.environ.get('DATABASE_URL'))
+def init_connection():
+    result = urlparse(os.environ.get('DATABASE_URL'))
+    return psycopg2.connect(
+        database = result.path[1:],
+        user = result.username,
+        password = result.password,
+        host = result.hostname,
+        port = result.port
+    )
 
-names = ['John Smith','Rebecca Briggs']
-usernames = ['jsmith','rbriggs']
-passwords = ['123','456']
+def run_query(query):
+    with conn.cursor() as cur:
+        cur.execute(query)
+        return cur.fetchall()
+
+conn = init_connection()
+
+user_credentials = run_query("SELECT * from user_credentials;")
+
+
+id = [user[0] for user in user_credentials]
+usernames = [user[1] for user in user_credentials]
+passwords = [user[2] for user in user_credentials]
 
 hashed_passwords = stauth.Hasher(passwords).generate()
 
-authenticator = stauth.Authenticate(names,usernames,hashed_passwords,
+authenticator = stauth.Authenticate(id,usernames,hashed_passwords,
     'some_cookie_name','some_signature_key',cookie_expiry_days=30)
 
 name, authentication_status, username = authenticator.login('Login','main')
