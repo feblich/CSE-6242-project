@@ -20,13 +20,14 @@ class SuperGenes:
         self.pipe = None
         self.mdl = None
         self.scaler = None
+        self.super_genes_labels = None
 
     def _cluster(self, X):
         if self.clustering_method == 'hierarchical_clustering':
             X = X.T
-            self.scaler = StandardScaler()
-            scaled_X = self.scaler.fit_transform(X)
-            X = pd.DataFrame(scaled_X, index=X.index, columns=X.columns)
+            # self.scaler = StandardScaler()
+            # scaled_X = self.scaler.fit_transform(X)
+            # X = pd.DataFrame(scaled_X, index=X.index, columns=X.columns)
             cluster_obj = AgglomerativeClustering(n_clusters=500, compute_distances=True)
             cluster_obj.fit(X)
             self.super_genes_labels = cluster_obj.labels_
@@ -42,6 +43,7 @@ class SuperGenes:
 
     def predict(self, X):
         X = X.T
+        # X = pd.DataFrame(self.scaler.transform(X), index=X.index, columns=X.columns)
         X['cluster_labels'] = self.super_genes_labels
         X = X.groupby(by="cluster_labels").mean()
         X = X.T
