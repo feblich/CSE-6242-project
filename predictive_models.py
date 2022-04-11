@@ -63,7 +63,8 @@ def create_training_set(gene_exp, drug_IC50, drug_name):
 
 if __name__ == "__main__":
 
-
+    # list of drug to the analysis
+    drug_list = ['mitomycin', 'vorinostat', 'elesclomol', 'bortezomib']
 
     ## read in gene expression data
     gene_exp = pd.read_csv("data\Expression_22Q1_Public.csv")
@@ -71,6 +72,8 @@ if __name__ == "__main__":
 
     ## read in drug IC50 data
     all_drugs_IC50 = pd.read_csv("data\Drug_sensitivity_IC50_Sanger_GDSC1.csv")
+
+    
     X, y = create_training_set(gene_exp, all_drugs_IC50, 'mitomycin')
 
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3,
