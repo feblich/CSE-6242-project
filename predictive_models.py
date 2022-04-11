@@ -49,6 +49,17 @@ class SuperGenes:
         X = X.T
         return self.mdl.predict(X)
 
+def create_training_set(gene_exp, drug_IC50, drug_name):
+    drug_col_name = drug_IC50.columns[drug_IC50.columns.str.contains(drug_name)][0]
+    drug_name_df = drug_IC50[["Unnamed: 0", drug_col_name]]
+    drug_name_df.dropna(inplace=True)
+    gene_exp_IC50 = gene_exp.merge(drug_name_df)
+    drug_col_name = gene_exp_IC50.columns[gene_exp_IC50.columns.str.contains(drug_name)][0]
+    X = gene_exp_IC50.loc[:, gene_exp_IC50.columns != drug_col_name]  # features
+    X = X.loc[:, X.columns != 'Unnamed: 0']  # features
+    y = gene_exp_IC50[drug_col_name]
+    return X, y
+    # drug_IC50_dataset.iloc[:, drug_IC50.columns.str.contains(drug_name)]
 
 if __name__ == "__main__":
 
@@ -59,23 +70,8 @@ if __name__ == "__main__":
     gene_exp.dropna(inplace=True)
 
     ## read in drug IC50 data
-    drug_IC50 = pd.read_csv("data\Drug_sensitivity_IC50_Sanger_GDSC1.csv")
-    mitomycin = drug_IC50[["Unnamed: 0", "mitomycin-C (GDSC1:136)"]]
-    mitomycin.dropna(inplace=True)
-    trametinib = drug_IC50[["Unnamed: 0", "trametinib (GDSC1:1372)"]]
-    trametinib.dropna(inplace=True)
-
-    ## merge the gene epression and IC50 for drugs
-    data_mitomycin = gene_exp.merge(mitomycin)
-    data_trametinib = gene_exp.merge(trametinib)
-
-    X = data_mitomycin.loc[:, data_mitomycin.columns != 'mitomycin-C (GDSC1:136)']  # features
-    X = X.loc[:, X.columns != 'Unnamed: 0']  # features
-    y = data_mitomycin['mitomycin-C (GDSC1:136)']  # response Variable
-
-    # X = data_trametinib.loc[:, data_trametinib.columns != 'trametinib (GDSC1:1372)']  # features
-    # X = X.loc[:, X.columns != 'Unnamed: 0']  # features
-    # y = data_trametinib['trametinib (GDSC1:1372)']  # response Variable
+    all_drugs_IC50 = pd.read_csv("data\Drug_sensitivity_IC50_Sanger_GDSC1.csv")
+    X, y = create_training_set(gene_exp, all_drugs_IC50, 'mitomycin')
 
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3,
                                                         random_state=42)
