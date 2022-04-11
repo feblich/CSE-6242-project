@@ -87,6 +87,8 @@ if __name__ == "__main__":
     y_pred = mdl.predict(X_test)
     rmse = mean_squared_error(y_test, y_pred)
     pickle.dump(mdl, open('model.pkl', 'wb'))
+    X_test.to_csv('x_test.csv', index=False)
+    y_test.to_csv('y_test.csv', index=False)
 
 
 
