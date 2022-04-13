@@ -46,12 +46,12 @@ class SuperGenes:
         X = X.T
         return self.mdl.predict(X)
 
-def create_training_set(gene_exp, drug_IC50, drug_name):
-    drug_col_name = drug_IC50.columns[drug_IC50.columns.str.contains(drug_name)][0]
+def create_training_set(gene_exp, drug_IC50, drug_col_name):
+    # drug_col_name = drug_IC50.columns[drug_IC50.columns.str.contains(drug_name)][0]
     drug_name_df = drug_IC50[["Unnamed: 0", drug_col_name]]
     drug_name_df.dropna(inplace=True)
     gene_exp_IC50 = gene_exp.merge(drug_name_df)
-    drug_col_name = gene_exp_IC50.columns[gene_exp_IC50.columns.str.contains(drug_name)][0]
+    # drug_col_name = gene_exp_IC50.columns[gene_exp_IC50.columns.str.contains(drug_name)][0]
     X = gene_exp_IC50.loc[:, gene_exp_IC50.columns != drug_col_name]  # features
     X = X.loc[:, X.columns != 'Unnamed: 0']  # features
     y = gene_exp_IC50[drug_col_name]
@@ -66,8 +66,12 @@ if __name__ == "__main__":
     ## read in drug IC50 data
     all_drugs_IC50 = pd.read_csv("data\Drug_sensitivity_IC50_Sanger_GDSC1.csv")
 
+    ## choose the 20 drugs that have the least nan
+    frequent_drugs = all_drugs_IC50.isna().sum().sort_values(ascending=True)[:21]
+    frequent_drugs.drop('Unnamed: 0', inplace=True)
+
     # list of drug to the analysis
-    drug_list = ['mitomycin', 'vorinostat', 'elesclomol', 'AZD8055', 'TW-37','Piplartine']
+    drug_list = [drug for drug in frequent_drugs.index]
     models_dict = defaultdict()
     RMSEs = []
     for drug in drug_list:
