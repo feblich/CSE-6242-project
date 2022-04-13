@@ -12,6 +12,7 @@ from sklearn.preprocessing import StandardScaler
 from sklearn.pipeline import Pipeline
 from sklearn.metrics import mean_squared_error
 import pickle
+from collections import defaultdict
 
 class SuperGenes:
     def __init__(self, clustering_method, model_config):
@@ -25,9 +26,6 @@ class SuperGenes:
     def _cluster(self, X):
         if self.clustering_method == 'hierarchical_clustering':
             X = X.T
-            # self.scaler = StandardScaler()
-            # scaled_X = self.scaler.fit_transform(X)
-            # X = pd.DataFrame(scaled_X, index=X.index, columns=X.columns)
             cluster_obj = AgglomerativeClustering(n_clusters=500, compute_distances=True)
             cluster_obj.fit(X)
             self.super_genes_labels = cluster_obj.labels_
@@ -43,7 +41,6 @@ class SuperGenes:
 
     def predict(self, X):
         X = X.T
-        # X = pd.DataFrame(self.scaler.transform(X), index=X.index, columns=X.columns)
         X['cluster_labels'] = self.super_genes_labels
         X = X.groupby(by="cluster_labels").mean()
         X = X.T
@@ -59,12 +56,8 @@ def create_training_set(gene_exp, drug_IC50, drug_name):
     X = X.loc[:, X.columns != 'Unnamed: 0']  # features
     y = gene_exp_IC50[drug_col_name]
     return X, y
-    # drug_IC50_dataset.iloc[:, drug_IC50.columns.str.contains(drug_name)]
 
 if __name__ == "__main__":
-
-    # list of drug to the analysis
-    drug_list = ['mitomycin', 'vorinostat', 'elesclomol', 'bortezomib']
 
     ## read in gene expression data
     gene_exp = pd.read_csv("data\Expression_22Q1_Public.csv")
@@ -73,24 +66,28 @@ if __name__ == "__main__":
     ## read in drug IC50 data
     all_drugs_IC50 = pd.read_csv("data\Drug_sensitivity_IC50_Sanger_GDSC1.csv")
 
-    
-    X, y = create_training_set(gene_exp, all_drugs_IC50, 'mitomycin')
+    # list of drug to the analysis
+    drug_list = ['mitomycin', 'vorinostat', 'elesclomol', 'AZD8055', 'TW-37','Piplartine']
+    models_dict = defaultdict()
+    RMSEs = []
+    for drug in drug_list:
 
-    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3,
-                                                        random_state=42)
+        X, y = create_training_set(gene_exp, all_drugs_IC50, drug)
 
-    mdl = SuperGenes(clustering_method='hierarchical_clustering',
-                     model_config={'name': Lasso(), 'parameters': {'alpha': [.0000001, .0001]}})
+        X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3,
+                                                            random_state=42)
+        mdl = SuperGenes(clustering_method='hierarchical_clustering',
+                         model_config={'name': Lasso(), 'parameters': {'alpha': [.0000001, .0001]}})
 
-    mdl.learning(X_train, y_train)
-    y_pred = mdl.predict(X_test)
-    rmse = mean_squared_error(y_test, y_pred)
-    pickle.dump(mdl, open('model.pkl', 'wb'))
+        mdl.learning(X_train, y_train)
+        models_dict[drug] = mdl
+        y_pred = mdl.predict(X_test)
+        rmse = mean_squared_error(y_test, y_pred)
+        RMSEs.append(rmse)
+
+    pickle.dump(models_dict, open('model.pkl', 'wb'))
     X_test.to_csv('x_test.csv', index=False)
     y_test.to_csv('y_test.csv', index=False)
-
-
-
 
 
 

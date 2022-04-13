@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
 import pickle
+import numpy as np
 from predictive_models import SuperGenes
 
 st.sidebar.subheader("File Upload")
@@ -14,7 +15,16 @@ if uploaded_file is not None:
     except Exception as e:
         print(e)
 
-super_genes_model = pickle.load(open('model.pkl', 'rb'))
-y_pred = super_genes_model.predict(test_df)
-st.title("IC50 prediction for mitomycin")
-st.write(pd.DataFrame(y_pred).rename(columns={0:"mitomycin"}))
+super_genes_models = pickle.load(open('model.pkl', 'rb'))
+pred_arr = np.empty([test_df.shape[0], len(super_genes_models.keys())])
+pred_arr[:] = np.nan
+for i, drug in enumerate(super_genes_models.keys()):
+    y_pred = super_genes_models[drug].predict(test_df)
+    pred_arr[:, i] = y_pred
+
+pred_arr = pd.DataFrame(pred_arr, columns=[drug for drug in super_genes_models.keys()])
+pred_arr['sample_number'] = ['sample ' + str(num) for num in range(pred_arr.shape[0])]
+pred_arr.set_index('sample_number', inplace=True)
+
+st.title("IC50 prediction")
+st.write(pred_arr)
