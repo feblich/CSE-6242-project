@@ -1,5 +1,5 @@
 # CSE-6242-project
-###Cancer Treatment Predictor
+### Cancer Treatment Predictor
 
 This package contains our Cancer Treatment Predictor [Streamlit](https://streamlit.io/) app. This app deploys our own 
 predictive models which calculates the reaction of a gene sample to a cancer treatment (implementation in `predictive_model.py`). 
@@ -36,9 +36,9 @@ This app is remotely deployed through Heroku and saves data in a Postgres databa
 at https://cse-6242.herokuapp.com/.
 
 
-###Local Development
+### Local Development
 
-####Connect to database
+#### Connect to database
 In order to deploy the app locally there should be an `.env` file at the root of the directory 
 containing the following. This will allow you to connect to the Heroku Postgres database 
 
@@ -50,7 +50,7 @@ Note: The `local_development` variable in `DBUtility.py` needs to be
 `True` for local development (line 7). 
 
 
-####Install all required packages
+#### Install all required packages
 Install all required python packages specified in the `requirement.txt` file. Packages can be installed by using `pip`. 
 - [How To Install PIP to Manage Python Packages On Windows](https://phoenixnap.com/kb/install-pip-windows)
 - [How to Install Pip on Mac](https://phoenixnap.com/kb/install-pip-mac)
@@ -60,13 +60,13 @@ Once pip is working on your device, you can run the following command in your te
 pip install -r requirements.txt
 ```
 
-####Deploy the app!
+#### Deploy the app!
 You are now ready to deploy the streamlit app using your terminal: 
 ```text
 streamlit run app.py 
 ```
 
-####Use App
+#### Use App
 Once the login page is visible you can log into the app using the following credentials: 
 ```text
 username: local_user
