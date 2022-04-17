@@ -10,7 +10,38 @@ import numpy as np
 import plotly.express as px
 import plotly.subplots as sp
 
+def generate_metrics_df(object, round_n):
+    '''This function takes a default dict of SuperGenes models (labelled by corresponding drug name) and iterates through each dictionary key,
+    extracting relevant model training parameters and metrics of the best-performing model. A pandas DataFrame containing these metrics is returned.
+    '''
+    n = round_n  # shorthand
+    results = np.array([])
+    for drug in object:
+        model = object[drug]
+        best_idx = model.mdl.best_index_
+        cv_results = model.mdl.cv_results_
+        results = np.append(results, [drug, model.mdl.estimator, model.mdl.n_splits_, cv_results['param_alpha'][best_idx],\
+                            np.round(cv_results['mean_test_score'][best_idx], n), np.round(cv_results['std_test_score'][best_idx], n),\
+                            np.round(cv_results['split0_test_score'][best_idx], n), np.round(cv_results['split1_test_score'][best_idx], n),\
+                            np.round(cv_results['split2_test_score'][best_idx], n), np.round(cv_results['split3_test_score'][best_idx], n),\
+                            np.round(cv_results['split4_test_score'][best_idx], n)])
+    results = np.reshape(results, (len(object), -1))  # reshape array
+    results = pd.DataFrame(results, columns= ['drug', 'estimator', 'n_splits', 'best alpha', 'mean_test_score', 'std_test_score',\
+                                              'test split 0', 'test split 1', 'test split 2', 'test split 3', 'test split 4'])
+    return results
+
+col1, col2 = st.columns([11,2])
+
+with col1:
+    st.title('Cancer Treatment Predictor')
+
+with col2:
+    st.image("title_image.png", use_column_width='always')
+
+
+
 connection = DBUtility.init_connection()
+
 user_credentials = DBUtility.run_query(connection,query="SELECT * from user_credentials;")
 
 id = [user[0] for user in user_credentials]
@@ -24,52 +55,43 @@ authenticator = stauth.Authenticate(id, usernames, hashed_passwords,
 
 id, authentication_status, username = authenticator.login('Login', 'main')
 
-authentication_status = True
+initial_run = True
 
 if authentication_status:
     st.sidebar.subheader("File Upload")
-    uploaded_file = st.sidebar.file_uploader(label="upload gene expression data CSV file",
-                                             type=['csv'])
+    uploaded_file = st.sidebar.file_uploader(label="upload gene expression data CSV file",type=['csv'])
+    super_genes_models = pickle.load(open('model.pkl', 'rb'))
 
     ##TODO upload cell line data for patient to DB
-    test_df = pd.read_csv(uploaded_file)
 
-    super_genes_models = pickle.load(open('model.pkl', 'rb'))
-    # st.write(super_genes_models)
-    pred_arr = np.empty([test_df.shape[0], len(super_genes_models.keys())])
-    pred_arr[:] = np.nan
-    for i, drug in enumerate(super_genes_models.keys()):
-        y_pred = super_genes_models[drug].predict(test_df)
-        pred_arr[:, i] = y_pred
+    if uploaded_file is not None:
+        test_df = pd.read_csv(uploaded_file)
+        pred_arr = np.empty([test_df.shape[0], len(super_genes_models.keys())])
+        pred_arr[:] = np.nan
+        for i, drug in enumerate(super_genes_models.keys()):
+            y_pred = super_genes_models[drug].predict(test_df)
+            pred_arr[:, i] = y_pred
 
-    pred_arr = pd.DataFrame(pred_arr, columns=[drug for drug in super_genes_models.keys()])
-    pred_arr['sample_number'] = ['sample ' + str(num) for num in range(pred_arr.shape[0])]
-    pred_arr.set_index('sample_number', inplace=True)
+        pred_arr = pd.DataFrame(pred_arr, columns=[drug for drug in super_genes_models.keys()])
+        pred_arr['sample_id'] = pred_arr.sum(axis=1).map(hash)
+        pred_arr.set_index('sample_id', inplace=True)
 
-    st.title("IC50 prediction")
+        pred_arr = pred_arr.stack().reset_index().rename(columns={0: 'IC50', 'level_1': 'Drug'})
+        pred_arr['user_id'] = [id for num in range(pred_arr.shape[0])]
+        DBUtility.execute_values(connection, pred_arr, 'results')
 
-    pred_arr = pred_arr.stack().reset_index().rename(columns={0:'IC50', 'level_1': 'Drug'})
-
-
-    # st.write(pred_arr)
+        uploaded_file = None
 
 
-
-    #TODO add all treatments
-
-    # st.title("IC50 prediction for mitomycin")
-    # st.write(pd.DataFrame(y_pred).rename(columns={0: "mitomycin"}))
-    #TODO store them in the database (PATIENT ID, TREATMENT, IC50 VALUE)
-
-    #TODO visualization --- select db
-
+    results = DBUtility.run_query(connection, query=f"SELECT * from results where user_id = {id};")
+    result_df = pd.DataFrame(results, columns=['sample_id', 'user_id', 'drug', 'ic50'])
 
     drug_rslts = pd.read_csv("data/Drug_sensitivity_IC50_(Sanger_GDSC1).csv")
     drug_rslts = drug_rslts.fillna(0)
     drug_rslts.set_index("Unnamed: 0", inplace=True)
     df = drug_rslts.stack().reset_index().rename(columns={0: 'value'})
-    df.rename(columns={'Unnamed: 0': 'Patient', 'level_1': 'Drug',
-                       'value': 'IC50'}, inplace=True)
+    df.rename(columns={'Unnamed: 0': 'Patient', 'level_1': 'drug',
+                       'value': 'ic50'}, inplace=True)
     df = df.loc[(df != 0).all(axis=1)]
 
     # st.write(df)
@@ -77,9 +99,9 @@ if authentication_status:
     # st.set_page_config(layout="wide")
     # st.title("Interact with Drug_sensitivity_IC50_(Sanger_GDSC2)")
 
-    drug_list = [drug for drug in super_genes_models.keys()]
+    drug_list = list(result_df['drug'].unique())
     # patient_list = list(df['Patient'].unique())
-    samples = list(pred_arr['sample_number'].unique())
+    samples = list(result_df['sample_id'].unique())
 
     with st.sidebar:
         st.subheader("Configure the plot")
@@ -87,90 +109,44 @@ if authentication_status:
 
         chart_visual = st.sidebar.selectbox('Select Chart',
                                             ('Predictions', 'Sanger GDSC2', 'Model Metrics'))
-    query_1 = f"sample_number=='{patient}'"
-    df_patient = pred_arr.query(query_1)
-
-    # st.write(df_patient)
-
-    # drug_subset = ['cisplatin (GDSC2:1005)',
-    #                'docetaxel (GDSC2:1007)',
-    #                'gefitinib (GDSC2:1010)',
-    #                'gemcitabine (GDSC2:1190)',
-    #                'paclitaxel (GDSC2:1080)']
+    query_1 = f"sample_id=='{patient}'"
+    df_patient = result_df.query(query_1)
 
     if chart_visual == 'Predictions':
-
+        st.header("IC50 prediction")
         with st.sidebar:
             treatment_select = st.multiselect(label="Pick Treatment(s)", options=drug_list)
-
-        # if len(treatment_select) == 0:
-        #
-        #     f = plt.figure(figsize=(10, 15))
-        #     for i, val in enumerate(drug_list):
-        #         # f.add_subplot(len(drug_list), int(len(drug_list)/2), i + 1)
-        #         sns.distplot(df['IC50'][df['Drug'] == val], hist=True)
-        #
-        #         plt.axvline(x=df['IC50'][df['Drug'] == val].mean(),
-        #                     color='blue',
-        #                     ls='--',
-        #                     lw=2.5,
-        #                     label="Average IC50")
-        #
-        #         if len(df_patient[df_patient['Drug'] == val]['IC50']) != 0:
-        #
-        #             treatment_avg = df['IC50'][df['Drug'] == val].mean()
-        #             patient_result = df_patient[df_patient['Drug'] == val]['IC50'].values[0]
-        #
-        #             if patient_result > treatment_avg:
-        #                 linecolor = 'green'
-        #             else:
-        #                 linecolor = 'red'
-        #
-        #             plt.axvline(x=df_patient[df_patient['Drug'] == val]['IC50'].values[0],
-        #                         color=linecolor,
-        #                         ls='-',
-        #                         lw=2.5,
-        #                         label="Patient's IC50")
-        #
-        #         plt.title(str(df['Drug'][df['Drug'] == val].iloc[0]), fontweight='bold')
-        #         plt.legend()
-        #         plt.grid()
-        #         plt.tight_layout()
-        #
-        #     st.pyplot(f)
-
-        # else:
 
         if (len(treatment_select) > 0):
 
             f = plt.figure(figsize=(10, 15))
             for i, val in enumerate(treatment_select):
                 f.add_subplot(4, 2, i + 1)
-                sns.distplot(df['IC50'][df['Drug'] == val], hist=True)
+                sns.distplot(df['ic50'][df['drug'] == val], hist=True)
 
-                plt.axvline(x=df['IC50'][df['Drug'] == val].mean(),
+                plt.axvline(x=df['ic50'][df['drug'] == val].mean(),
                             color='blue',
                             ls='--',
                             lw=2.5,
                             label="Average IC50")
 
-                if len(df_patient[df_patient['Drug'] == val]['IC50']) != 0:
+                if len(df_patient[df_patient['drug'] == val]['ic50']) != 0:
 
-                    treatment_avg = df['IC50'][df['Drug'] == val].mean()
-                    patient_result = df_patient[df_patient['Drug'] == val]['IC50'].values[0]
+                    treatment_avg = df['ic50'][df['drug'] == val].mean()
+                    patient_result = df_patient[df_patient['drug'] == val]['ic50'].values[0]
 
                     if patient_result > treatment_avg:
                         linecolor = 'green'
                     else:
                         linecolor = 'red'
 
-                    plt.axvline(x=df_patient[df_patient['Drug'] == val]['IC50'].values[0],
+                    plt.axvline(x=df_patient[df_patient['drug'] == val]['ic50'].values[0],
                                 color=linecolor,
                                 ls='-',
                                 lw=2.5,
                                 label="Patient's IC50")
 
-                plt.title(str(df['Drug'][df['Drug'] == val].iloc[0]), fontweight='bold')
+                plt.title(str(df['drug'][df['drug'] == val].iloc[0]), fontweight='bold')
                 plt.legend()
                 plt.grid()
                 plt.tight_layout()
@@ -181,10 +157,10 @@ if authentication_status:
         with st.sidebar:
             patient = st.multiselect(label="Pick Treatment(s)", options=drug_list)
 
-        df.rename(columns={"Drug": "Treatment(s)"}, inplace=True)
+        df.rename(columns={"drug": "Treatment(s)"}, inplace=True)
 
         if len(patient) == 0:
-            fig = px.violin(df[df['Treatment(s)'].isin(drug_list)], y='IC50', x='Treatment(s)',
+            fig = px.violin(df[df['Treatment(s)'].isin(drug_list)], y='ic50', x='Treatment(s)',
                             color='Treatment(s)', box=True,
                             hover_data=df[df['Treatment(s)'].isin(drug_list)].columns,
                             width=1000, height=700)
@@ -193,7 +169,7 @@ if authentication_status:
             st.plotly_chart(fig, sharing="streamlit")
 
         if len(patient) > 0:
-            fig = px.violin(df[df['Treatment(s)'].isin(patient)], y='IC50', x='Treatment(s)',
+            fig = px.violin(df[df['Treatment(s)'].isin(patient)], y='ic50', x='Treatment(s)',
                             color='Treatment(s)', box=True,
                             hover_data=df[df['Treatment(s)'].isin(patient)].columns,
                             width=1000, height=700)
@@ -202,19 +178,34 @@ if authentication_status:
             st.plotly_chart(fig)
 
     if chart_visual == 'Model Metrics':
+        metrics = generate_metrics_df(super_genes_models, round_n=2)
 
-        #### Model Performance Metrics ####
-        metric = ['accuracy', 'accuracy', 'rmse', 'rmse']
-        split = ['Training Data', 'Test Data', 'Training Data', 'Test Data']
-        vals = [0.8234, 0.71234, 0.2435, 0.123]
+        # Convert sign of std test score to match that of mean test score (for visual aesthetics)
+        metrics['std_test_score'] = metrics['std_test_score'] * np.sign(metrics['mean_test_score'])
 
-        metrics = pd.DataFrame(list(zip(metric, split, vals)), columns=['Metric', 'Split', 'Value'])
-        print("metrics:", metrics)
+        # add drug filter
+        model_names = sorted(metrics['drug'].unique())
 
-        pm_fig = px.histogram(metrics, x='Split', y='Value', facet_col='Metric', color='Split',
-                              title='Model Performance Metrics')
-        pm_fig.update_layout(showlegend=False)
-        st.plotly_chart(pm_fig, sharing="streamlit")
+        # drug, variable, value
+        metrics = pd.melt(metrics, id_vars='drug')
+        metrics['value'] = metrics['value'].astype(str)
+
+        filter_drug = st.sidebar.selectbox('Select drug model:', options=model_names)
+        metrics = metrics[metrics['drug'] == filter_drug]
+
+        st.subheader(f"{filter_drug} model")
+
+        hide_dataframe_row_index = """
+                    <style>
+                    .row_heading.level0 {display:none}
+                    .blank {display:none}
+                    </style>
+                    """
+
+        st.markdown(hide_dataframe_row_index, unsafe_allow_html=True)
+        metrics_table = st.table(data=metrics.loc[:, ['variable', 'value']])
+
+
 
 elif authentication_status == False:
     st.error('Username/password is incorrect')
