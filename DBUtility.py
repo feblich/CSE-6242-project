@@ -4,7 +4,7 @@ import psycopg2.extras as extras
 import os
 from dotenv import load_dotenv
 
-local_development = False
+local_development = True
 
 
 def init_connection():

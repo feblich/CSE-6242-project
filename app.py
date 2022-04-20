@@ -9,6 +9,8 @@ import seaborn as sns
 import numpy as np
 import plotly.express as px
 import plotly.subplots as sp
+import datetime as dt
+
 
 def generate_metrics_df(object, round_n):
     '''This function takes a default dict of SuperGenes models (labelled by corresponding drug name) and iterates through each dictionary key,
@@ -107,8 +109,10 @@ if authentication_status:
         st.subheader("Configure the plot")
         patient = st.selectbox(label="Choose a patient", options=samples)
 
-        chart_visual = st.sidebar.selectbox('Select Chart',
-                                            ('Predictions', 'Sanger GDSC2', 'Model Metrics'))
+        chart_visual = st.sidebar.selectbox('Select View', options=['Edit Patient Data','Predictions', 'Sanger GDSC1', 'Model Metrics'])
+
+
+
     query_1 = f"sample_id=='{patient}'"
     df_patient = result_df.query(query_1)
 
@@ -153,7 +157,7 @@ if authentication_status:
 
             st.pyplot(f)
 
-    if chart_visual == 'Sanger GDSC2':
+    if chart_visual == 'Sanger GDSC1':
         with st.sidebar:
             patient = st.multiselect(label="Pick Treatment(s)", options=drug_list)
 
@@ -204,6 +208,45 @@ if authentication_status:
 
         st.markdown(hide_dataframe_row_index, unsafe_allow_html=True)
         metrics_table = st.table(data=metrics.loc[:, ['variable', 'value']])
+
+    if chart_visual == 'Edit Patient Data':
+        # patient_results = DBUtility.run_query(DBUtility.init_connection(), query=f"SELECT * from patient_data where sample_id = \'{patient}\' order by date_entered desc limit 1;")
+        # st.write(patient_results)
+        patient_data = {}
+        st.header("Patient Demographics")
+
+        # add patient slider
+        census_races = ['Other', 'White', 'Black or African American', 'American Indian or Alaska Native', 'Asian',
+                        'Native Hawaiian or Other Pacific Islander', 'Hispanic/Latino']
+
+        sexs = ['N/A', 'Female', 'Male', 'Intersex']
+
+        # note: we can and SHOULD use default/auto-generated patient ID as default
+        patient_data['sample_'] = patient
+        patient_data['age'] = st.number_input("Age at Diagnosis", step=1, max_value=150, value=67)
+        patient_data['sex'] = st.selectbox('Sex', sexs)
+        patient_data['race'] = st.selectbox("Race or Ethnicity", options=census_races)
+        patient_data['cancer_type'] = st.selectbox("Cancer Type", options=['Carcinoma', 'Sarcoma', 'Melanoma', 'Lymphoma', 'Leukemia'], index=4)
+        patient_data['cancer_subtype'] = st.text_input("Cancer Subtype")
+        patient_data['stage'] = st.selectbox("Stage:", options=['I', 'II', 'III', 'IV', 'Unstaged'])
+        patient_data['prior_treatments'] = st.multiselect("Prior Therapies? List all that apply", options=drug_list)
+        patient_data['recommended_treatment'] = st.selectbox("Which treatment will you recommend?", options=drug_list)
+        patient_data['frequency'] = st.selectbox('Frequency Unit', options=['Weekly', 'Biweekly', 'Triweekly', 'Monthly'])
+        patient_data['treatments_per_week'] = st.number_input(f"Treatments per unit", step=1)
+        patient_data['dosage'] = st.number_input("Dosage (micrograms)")
+        patient_data['anticipated_duration'] = st.number_input("Anticipated Treatment Duration (in weeks)")
+
+        patient_data['date_entered'] = dt.date.today()
+
+
+        st.write('Input date:', patient_data['date_entered'].strftime("%B %d, %Y"))
+
+        # user = "test user"  # ideally we would sub in the physician's user id here.
+
+        # print('test df iteration')
+
+        if st.button("Update Patient Data"):
+            DBUtility.execute_values(connection, pd.DataFrame.from_dict(patient_data), 'patient_data')
 
 
 
